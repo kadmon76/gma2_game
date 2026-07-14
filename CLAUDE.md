@@ -7,8 +7,9 @@ mimic of the grandMA2 Effect Value window. Trains real console muscle memory.
 Personal use + a few friends. No monetization, no accounts, no analytics.
 
 ## Current state
-`fx-trainer-v1.html` is the complete, playable v1 — a single self-contained
-HTML file developed as a Claude.ai artifact (PoC phase). Feature-complete:
+`index.html` (formerly `fx-trainer-v1.html`) is the complete, playable v1 — a
+single self-contained HTML file developed as a Claude.ai artifact (PoC phase),
+plus PWA companions (`manifest.json`, `sw.js`, icons). Feature-complete:
 - 8 fixtures on canvas (target row + player row), sine dimmer effect
 - MA2-accurate parameters: Speed (BPM), Low/High values, Phase from..to
   (degrees, "thru" syntax), Direction forward/backward
