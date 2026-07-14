@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FX Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #14100d;
+    --surface: #1e1813;
+    --line: #322a21;
+    --text: #e8ddcc;
+    --muted: #8a7d6a;
+    --amber: #f2c14e;
+    --good: #7dc97d;
+    --bad: #d96a5a;
+    --ma-bg: #000;
+    --ma-title: #26265c;
+    --ma-head-tx: #b8e0b8;
+    --ma-fader-line: #c8860a;
+    --ma-btn-tx: #e0a010;
+    --ma-disabled: #6a6a6a;
+    --ma-red: #4a0d0d;
+    --ma-gold: #a8821a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    height: 100%; overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .app {
+    height: 100dvh; display: flex; flex-direction: column;
+    padding: 10px 12px; gap: 8px;
+    max-width: 640px; margin: 0 auto;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber); }
+  .lvbtn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 10px; cursor: pointer;
+  }
+  .lvbtn .st { color: var(--amber); }
+
+  .stagewrap { flex: 1; min-height: 90px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .row {
+    flex: 1; min-height: 0;
+    background: radial-gradient(120% 100% at 50% 0%, #201913 0%, var(--bg) 70%);
+    border: 1px solid var(--line); border-radius: 10px;
+    position: relative; overflow: hidden;
+  }
+  .row .tag {
+    position: absolute; top: 5px; left: 9px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted); z-index: 2;
+  }
+  .row.target .tag { color: var(--amber); }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .winflash {
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; opacity: 0;
+  }
+  .winflash.go { animation: winpulse 1.4s ease-out; }
+  .winflash .stamp {
+    font-weight: 700; font-size: 2rem;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--amber);
+    border: 3px solid var(--amber);
+    border-radius: 8px;
+    padding: 8px 22px 8px 28px;
+    transform: rotate(-6deg);
+    background: rgba(20,16,13,0.75);
+    text-shadow: 0 0 24px rgba(242,193,78,0.9);
+  }
+  @keyframes winpulse {
+    0% { opacity: 0; }
+    12% { opacity: 1; }
+    75% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Effect Value window */
+  .ma-window { background: var(--ma-bg); border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+  .ma-titlebar { background: var(--ma-title); color: #fff; font-size: 0.72rem; padding: 5px 9px; border-bottom: 1px solid #444; display: flex; justify-content: space-between; }
+  .ma-titlebar .att { font-family: 'IBM Plex Mono', monospace; color: #8888c0; }
+  .ma-cols { display: grid; grid-template-columns: 1.3fr repeat(5, 1fr); gap: 3px; padding: 4px; }
+  .ma-col { display: flex; flex-direction: column; gap: 3px; }
+  .ma-head {
+    background: linear-gradient(#5a5a5a, #3a3a3a);
+    color: var(--ma-head-tx);
+    font-size: 0.66rem; font-weight: 700; text-align: center;
+    padding: 5px 2px; border: 1px solid #2a2a2a;
+  }
+  .ma-head.dis { color: var(--ma-disabled); }
+  .ma-form-box {
+    flex: 1; border: 1px solid var(--ma-fader-line);
+    background:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+      #050505;
+    background-size: 20% 25%, 20% 25%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ma-form-box svg { width: 92%; height: 80%; }
+  .ma-ad { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .ma-ad .ma-head { font-size: 0.6rem; }
+  .ma-fader {
+    flex: 1; position: relative;
+    border: 1px solid var(--ma-fader-line);
+    background: #050505; cursor: pointer;
+    touch-action: none; overflow: hidden;
+  }
+  .ma-fader.dis { border-color: #3a3a3a; cursor: default; }
+  .ma-fader .fill {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, rgba(200,134,10,0.34), rgba(200,134,10,0.10));
+    pointer-events: none;
+  }
+  .ma-fader .lines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 9%);
+    pointer-events: none;
+  }
+  .ma-fader .knob {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: var(--ma-fader-line);
+    box-shadow: 0 0 6px rgba(224,160,16,0.8);
+    pointer-events: none;
+  }
+  .ma-val {
+    background: #050505; border: 1px solid #333;
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem; text-align: center;
+    padding: 4px 1px; cursor: pointer;
+    white-space: nowrap; overflow: hidden;
+  }
+  .ma-val.dis { color: var(--ma-disabled); cursor: default; }
+  .ma-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 0 4px 4px; }
+  .ma-btn {
+    background: #0a0a0a; border: 1px solid #333;
+    color: var(--ma-btn-tx);
+    font-size: 0.62rem; font-weight: 500; text-align: center;
+    padding: 8px 2px; cursor: pointer;
+  }
+  .ma-btn.dis { color: var(--ma-disabled); cursor: default; }
+
+  .store {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700; font-size: 0.95rem;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 13px;
+    background: #241c05; color: var(--amber);
+    border: 1px solid var(--amber); border-radius: 10px;
+    cursor: pointer;
+  }
+  .store:active { background: #3a2d08; }
+
+  /* Calculator */
+  .calc-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 10; padding: 10px;
+  }
+  .calc-back.open { display: flex; }
+  .calc { width: 100%; max-width: 460px; background: #000; border: 2px solid var(--ma-gold); border-radius: 4px; overflow: hidden; }
+  .calc-title { display: flex; align-items: stretch; background: var(--ma-title); border-bottom: 1px solid #444; }
+  .calc-title .t { flex: 1; color: #fff; font-size: 0.7rem; padding: 7px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calc-title .x { width: 52px; background: #0a0a0a; color: var(--ma-btn-tx); font-weight: 700; font-size: 1rem; display: flex; align-items: center; justify-content: center; border-left: 1px solid #444; cursor: pointer; }
+  .calc-input {
+    margin: 8px;
+    border: 1px solid var(--ma-gold); border-radius: 3px;
+    padding: 9px 10px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem;
+    background: linear-gradient(#2a7a2a, #1d5c1d);
+    min-height: 38px;
+    display: flex; align-items: center;
+  }
+  .calc-input .txt { color: #052605; font-weight: 600; }
+  .calc-input .caret { width: 2px; height: 1.05em; background: #052605; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .calc-presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
+  .cp {
+    flex: 1 1 auto; min-width: 70px; text-align: center;
+    font-size: 0.72rem; font-weight: 600;
+    padding: 10px 6px; border-radius: 3px;
+    border: 1px solid var(--ma-gold); cursor: pointer;
+  }
+  .cp.red { background: var(--ma-red); color: #f0f0f0; }
+  .cp.blk { background: #0a0a0a; color: #fff; }
+  .cp.gold { background: var(--ma-gold); color: #000; }
+  .cp.dis { opacity: 0.35; cursor: default; }
+  .calc-pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 0 8px 8px; }
+  .k {
+    background: #0a0a0a; border: 1px solid var(--ma-gold); border-radius: 3px;
+    color: #ddd; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem;
+    text-align: center; padding: 12px 2px; cursor: pointer;
+  }
+  .k:active { background: #201803; }
+  .k.dis { opacity: 0.35; cursor: default; }
+  .k.please { grid-column: span 2; font-family: 'Outfit', sans-serif; font-weight: 700; color: var(--ma-btn-tx); letter-spacing: 0.04em; }
+
+  /* Result panel */
+  .res-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    display: none; align-items: center; justify-content: center;
+    z-index: 20; padding: 16px;
+  }
+  .res-back.open { display: flex; }
+  .res {
+    width: 100%; max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 18px;
+    text-align: center;
+  }
+  .res .stars { font-size: 1.8rem; letter-spacing: 0.2em; margin-bottom: 4px; }
+  .res .stars .on { color: var(--amber); }
+  .res .stars .off { color: #3a3128; }
+  .res .score { font-family: 'IBM Plex Mono', monospace; font-size: 2.4rem; font-weight: 600; }
+  .res .verdict { color: var(--muted); font-size: 0.85rem; margin-bottom: 14px; }
+  .res .verdict.win { color: var(--good); }
+  .res .parts { text-align: left; margin-bottom: 16px; }
+  .res .part {
+    padding: 7px 4px; border-bottom: 1px solid var(--line); font-size: 0.82rem;
+  }
+  .res .part .topline {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .res .part .vals {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem; color: var(--muted);
+    margin-top: 3px;
+  }
+  .res .part .vals b { color: var(--text); font-weight: 600; }
+  .res .part .nm { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.68rem; }
+  .res .part .hint { flex: 1; text-align: right; margin-right: 10px; }
+  .res .part .pts { font-family: 'IBM Plex Mono', monospace; }
+  .res .part.ok .hint, .res .part.ok .pts { color: var(--good); }
+  .res .part.miss .hint, .res .part.miss .pts { color: var(--bad); }
+  .res .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .res button {
+    font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem;
+    padding: 12px; border-radius: 9px; cursor: pointer;
+    background: #241c05; color: var(--amber); border: 1px solid var(--amber);
+  }
+  .res button.sec { background: transparent; color: var(--muted); border-color: var(--line); }
+  .res button:disabled { opacity: 0.35; }
+
+  /* Level select */
+  .sel-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    display: none; align-items: center; justify-content: center;
+    z-index: 30; padding: 16px;
+  }
+  .sel-back.open { display: flex; }
+  .sel {
+    width: 100%; max-width: 420px; max-height: 80dvh; overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px;
+  }
+  .sel h2 {
+    font-size: 0.8rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 12px; text-align: center;
+  }
+  .sel .item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 10px;
+    border: 1px solid var(--line); border-radius: 9px;
+    margin-bottom: 7px; cursor: pointer;
+  }
+  .sel .item.cur { border-color: var(--amber); }
+  .sel .item.lock { opacity: 0.4; cursor: default; }
+  .sel .item .nm { font-size: 0.88rem; }
+  .sel .item .nm small { display: block; color: var(--muted); font-size: 0.66rem; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+  .sel .item .st { color: var(--amber); font-size: 0.85rem; letter-spacing: 0.1em; }
+  .sel .item .st .off { color: #3a3128; }
+  .sum-rank {
+    text-align: center;
+    font-weight: 700; font-size: 1.3rem;
+    color: var(--amber);
+    margin-bottom: 2px;
+  }
+  .sum-tot {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .sum-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+  }
+  .sum-row .nm { flex: 1; }
+  .sum-row .bs { font-family: 'IBM Plex Mono', monospace; color: var(--muted); margin-right: 12px; }
+  .sum-row .st { color: var(--amber); letter-spacing: 0.1em; }
+  .sum-row .st .off { color: #3a3128; }
+  .sum-close {
+    width: 100%; margin-top: 14px; padding: 12px;
+    font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem;
+    background: #241c05; color: var(--amber);
+    border: 1px solid var(--amber); border-radius: 9px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>FX Trainer</h1>
+    <button class="lvbtn" id="lvBtn"></button>
+  </header>
+
+  <div class="stagewrap">
+    <div class="row target"><span class="tag">Target</span><canvas id="cvT"></canvas></div>
+    <div class="row"><span class="tag">Yours</span><canvas id="cvP"></canvas></div>
+    <div class="winflash" id="winFlash"><span class="stamp">Stored</span></div>
+  </div>
+
+  <div class="ma-window">
+    <div class="ma-titlebar"><span>Effect Value</span><span class="att" id="attLabel"></span></div>
+    <div class="ma-cols">
+      <div class="ma-col">
+        <div class="ma-head">Form</div>
+        <div class="ma-form-box">
+          <svg viewBox="0 0 100 60" preserveAspectRatio="none">
+            <path d="M 0 30 C 12 2, 24 2, 36 30 S 60 58, 72 30 S 96 2, 100 14"
+                  fill="none" stroke="#e8e8e8" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          </svg>
+        </div>
+        <div class="ma-ad">
+          <div class="ma-head dis">Attack</div>
+          <div class="ma-head dis">Decay</div>
+        </div>
+      </div>
+      <div class="ma-col" id="col_low"></div>
+      <div class="ma-col" id="col_high"></div>
+      <div class="ma-col" id="col_speed"></div>
+      <div class="ma-col" id="col_phase"></div>
+      <div class="ma-col" id="col_width"></div>
+    </div>
+    <div class="ma-btns">
+      <div class="ma-btn dis">Single Shot</div>
+      <div class="ma-btn dis">Sync Effects</div>
+      <div class="ma-btn dis">Absolute</div>
+      <div class="ma-btn dis">No Speed Master</div>
+      <div class="ma-btn" id="btnDir">Direction Forward</div>
+      <div class="ma-btn dis">Val. Readout Low/High</div>
+    </div>
+  </div>
+
+  <button class="store" id="btnStore">Store</button>
+</div>
+
+<!-- Calculator -->
+<div class="calc-back" id="calcBack">
+  <div class="calc">
+    <div class="calc-title"><span class="t" id="calcTitle"></span><span class="x" id="calcX">✕</span></div>
+    <div class="calc-input"><span class="txt" id="calcTxt"></span><span class="caret"></span></div>
+    <div class="calc-presets" id="calcPresets"></div>
+    <div class="calc-pad" id="calcPad"></div>
+  </div>
+</div>
+
+<!-- Result -->
+<div class="res-back" id="resBack">
+  <div class="res">
+    <div class="stars" id="resStars"></div>
+    <div class="score" id="resScore"></div>
+    <div class="verdict" id="resVerdict"></div>
+    <div class="parts" id="resParts"></div>
+    <div class="btns">
+      <button class="sec" id="btnRetry">Try Again</button>
+      <button id="btnNext">Next Cue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Level select -->
+<div class="sel-back" id="selBack">
+  <div class="sel">
+    <h2>Cue List</h2>
+    <div id="selList"></div>
+  </div>
+</div>
+
+<!-- Sequence summary -->
+<div class="sel-back" id="sumBack">
+  <div class="sel">
+    <h2>Sequence Complete</h2>
+    <div class="sum-rank" id="sumRank"></div>
+    <div class="sum-tot" id="sumTot"></div>
+    <div id="sumList"></div>
+    <button class="sum-close" id="sumClose">Back to Cue List</button>
+  </div>
+</div>
+
+<script>
+// ================= Levels =================
+const FIXTURE_COUNT = 8;
+const LEVELS = [
+  { name: 'Soundcheck',    sub: 'everything in sync',      p: { speed: 30,  dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 0   } },
+  { name: 'The Wave',      sub: 'the classic',             p: { speed: 60,  dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 360 } },
+  { name: 'Half House',    sub: 'not a full circle',       p: { speed: 90,  dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 180 } },
+  { name: 'Heartbeat',     sub: 'it never goes dark',      p: { speed: 120, dir: 1,  low: 40, high: 100, phaseFrom: 0, phaseTo: 0   } },
+  { name: 'Undertow',      sub: 'something is backwards',  p: { speed: 45,  dir: -1, low: 30, high: 80,  phaseFrom: 0, phaseTo: 360 } },
+  { name: 'Double Vision', sub: 'count the peaks',         p: { speed: 60,  dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 720 } },
+  { name: 'Night Shift',   sub: 'high floor, in reverse',  p: { speed: 150, dir: -1, low: 50, high: 100, phaseFrom: 0, phaseTo: 180 } },
+  { name: 'Panic Cue',     sub: 'as fast as it looks',     p: { speed: 240, dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 0   } },
+  { name: 'Slow Tide',     sub: 'patience',                p: { speed: 15,  dir: 1,  low: 20, high: 90,  phaseFrom: 0, phaseTo: 360 } },
+  { name: 'Final Cue',     sub: 'everything at once',      p: { speed: 75,  dir: 1,  low: 10, high: 95,  phaseFrom: 0, phaseTo: -360 } },
+];
+// progress (in-memory for the PoC; server version will persist)
+const progress = LEVELS.map(() => ({ stars: 0, best: 0 }));
+
+let levelIdx = 0;
+let target = { ...LEVELS[0].p };
+let player = { speed: 60, dir: 1, low: 0, high: 100, phaseFrom: 0, phaseTo: 0 };
+let attempts = 0;
+
+function fixturePhaseDeg(p, i) {
+  const t = FIXTURE_COUNT === 1 ? 0 : i / (FIXTURE_COUNT - 1);
+  return p.phaseFrom + (p.phaseTo - p.phaseFrom) * t;
+}
+function dimmerAt(p, i, t) {
+  const ph = fixturePhaseDeg(p, i) * Math.PI / 180;
+  const s = Math.sin(2 * Math.PI * (p.speed / 60) * p.dir * t + ph);
+  return Math.max(0, Math.min(100, p.low + (p.high - p.low) * (s + 1) / 2));
+}
+
+// ================= Scoring =================
+function canonical(p) {
+  const phases = [];
+  for (let i = 0; i < FIXTURE_COUNT; i++) {
+    let ph = fixturePhaseDeg(p, i);
+    if (p.dir < 0) ph = 180 - ph;
+    if (p.low > p.high) ph += 180;
+    phases.push(ph);
+  }
+  const rel = phases.map(ph => circNorm(ph - phases[0]));
+  return { speed: p.speed, lo: Math.min(p.low, p.high), hi: Math.max(p.low, p.high), rel };
+}
+function circNorm(deg) { let d = deg % 360; if (d < 0) d += 360; return d; }
+function circDist(a, b) { const d = Math.abs(circNorm(a) - circNorm(b)); return Math.min(d, 360 - d); }
+function band(err, tolFull, tolZero, pts) {
+  if (err <= tolFull) return pts;
+  if (err >= tolZero) return 0;
+  return pts * (1 - (err - tolFull) / (tolZero - tolFull));
+}
+function scoreAttempt() {
+  const T = canonical(target);
+  const P = canonical(player);
+  const spdErr = Math.abs(P.speed - T.speed);
+  const spdPts = band(spdErr, Math.max(2, T.speed * 0.03), Math.max(20, T.speed * 0.35), 30);
+  let spdHint = 'matched';
+  if (spdPts < 29) spdHint = P.speed > T.speed ? 'too fast' : 'too slow';
+
+  const loErr = Math.abs(P.lo - T.lo);
+  const hiErr = Math.abs(P.hi - T.hi);
+  const sizePts = band(loErr, 3, 35, 15) + band(hiErr, 3, 35, 15);
+  let sizeHint = 'matched';
+  if (sizePts < 29) {
+    const hints = [];
+    if (loErr > 3) hints.push(P.lo > T.lo ? 'bottom too high' : 'bottom too low');
+    if (hiErr > 3) hints.push(P.hi > T.hi ? 'top too high' : 'top too low');
+    sizeHint = hints.join(', ') || 'close';
+  }
+
+  function phaseErr(rel) {
+    let s = 0;
+    for (let i = 0; i < FIXTURE_COUNT; i++) s += circDist(rel[i], T.rel[i]);
+    return s / FIXTURE_COUNT;
+  }
+  const errNow = phaseErr(P.rel);
+  const errFlip = phaseErr(canonical({ ...player, dir: -player.dir }).rel);
+  const phasePts = band(errNow, 8, 90, 40);
+  let phaseHint = 'matched';
+  if (phasePts < 38) {
+    if (errFlip < errNow * 0.4) phaseHint = 'try the other direction';
+    else if (errNow > 60) phaseHint = 'spread is off';
+    else phaseHint = 'spread is close';
+  }
+
+  const total = Math.round(spdPts + sizePts + phasePts);
+  const fv = (from, to, dir) => `${from}..${to} ${dir > 0 ? '>' : '<'}`;
+  return {
+    total,
+    stars: total >= 95 ? 3 : total >= 80 ? 2 : total >= 60 ? 1 : 0,
+    parts: [
+      { nm: 'Speed', pts: Math.round(spdPts),   max: 30, hint: spdHint,
+        you: player.speed + ' BPM', tgt: target.speed + ' BPM' },
+      { nm: 'Size',  pts: Math.round(sizePts),  max: 30, hint: sizeHint,
+        you: `${player.low}..${player.high}`, tgt: `${target.low}..${target.high}` },
+      { nm: 'Phase', pts: Math.round(phasePts), max: 40, hint: phaseHint,
+        you: fv(player.phaseFrom, player.phaseTo, player.dir),
+        tgt: fv(target.phaseFrom, target.phaseTo, target.dir) },
+    ],
+  };
+}
+
+// ================= Stage renderer =================
+function makeStage(canvas) {
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
+  function resize() {
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const r = canvas.getBoundingClientRect();
+    W = r.width; H = r.height;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  function draw(params, t) {
+    ctx.clearRect(0, 0, W, H);
+    const pad = Math.min(W * 0.07, 34);
+    const gap = (W - pad * 2) / (FIXTURE_COUNT - 1);
+    const r = Math.min(gap * 0.32, H * 0.26, 20);
+    const y = H * 0.58;
+    for (let i = 0; i < FIXTURE_COUNT; i++) {
+      const x = pad + gap * i;
+      const a = dimmerAt(params, i, t) / 100;
+      const bloomR = r * (1.6 + 2.2 * a);
+      const g = ctx.createRadialGradient(x, y, r * 0.2, x, y, bloomR);
+      g.addColorStop(0, `rgba(255,200,122,${0.55 * a})`);
+      g.addColorStop(0.4, `rgba(255,179,71,${0.22 * a})`);
+      g.addColorStop(1, 'rgba(255,179,71,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, bloomR, 0, Math.PI * 2); ctx.fill();
+      const lens = ctx.createRadialGradient(x - r*0.25, y - r*0.25, r*0.1, x, y, r);
+      lens.addColorStop(0, `rgba(255,236,200,${0.25 + 0.75 * a})`);
+      lens.addColorStop(1, `rgba(120,85,40,${0.25 + 0.55 * a})`);
+      ctx.fillStyle = lens;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(232,221,204,0.18)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  return { draw };
+}
+const stageT = makeStage(document.getElementById('cvT'));
+const stageP = makeStage(document.getElementById('cvP'));
+const t0 = performance.now();
+(function frame(now) {
+  const t = ((now || performance.now()) - t0) / 1000;
+  stageT.draw(target, t);
+  stageP.draw(player, t);
+  requestAnimationFrame(frame);
+})();
+
+// ================= Faders =================
+const FADERS = {
+  low:   { col: 'col_low',   head: 'Low',   min: 0, max: 100, get: () => player.low,   set: v => player.low = v,   fmt: v => v.toFixed(1) },
+  high:  { col: 'col_high',  head: 'High',  min: 0, max: 100, get: () => player.high,  set: v => player.high = v,  fmt: v => v.toFixed(1) },
+  speed: { col: 'col_speed', head: 'Speed', min: 0, max: 240, get: () => player.speed, set: v => player.speed = v, fmt: v => v.toFixed(1) },
+  phase: { col: 'col_phase', head: 'Phase', min: 0, max: 360,
+           get: () => player.phaseTo,
+           set: v => { player.phaseFrom = 0; player.phaseTo = v; },
+           fmt: () => player.phaseFrom === 0
+             ? player.phaseTo.toFixed(1)
+             : `${player.phaseFrom.toFixed(0)}..${player.phaseTo.toFixed(0)}` },
+};
+const els = {};
+function buildFader(key, def, disabled = false) {
+  const col = document.getElementById(def.col);
+  col.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'ma-head' + (disabled ? ' dis' : '');
+  head.textContent = def.head;
+  const val = document.createElement('div');
+  val.className = 'ma-val' + (disabled ? ' dis' : '');
+  const fader = document.createElement('div');
+  fader.className = 'ma-fader' + (disabled ? ' dis' : '');
+  fader.innerHTML = '<div class="lines"></div><div class="fill"></div><div class="knob"></div>';
+  col.appendChild(head); col.appendChild(val); col.appendChild(fader);
+  els[key] = { val, fill: fader.querySelector('.fill'), knob: fader.querySelector('.knob') };
+  if (disabled) { val.textContent = '100.0'; return; }
+  function setFromY(clientY) {
+    const r = fader.getBoundingClientRect();
+    let f = 1 - (clientY - r.top) / r.height;
+    f = Math.max(0, Math.min(1, f));
+    def.set(Math.round((def.min + (def.max - def.min) * f) / 5) * 5);
+    renderFaders();
+  }
+  fader.addEventListener('pointerdown', e => {
+    fader.setPointerCapture(e.pointerId);
+    setFromY(e.clientY);
+    const move = ev => setFromY(ev.clientY);
+    const up = () => {
+      fader.removeEventListener('pointermove', move);
+      fader.removeEventListener('pointerup', up);
+      fader.removeEventListener('pointercancel', up);
+    };
+    fader.addEventListener('pointermove', move);
+    fader.addEventListener('pointerup', up);
+    fader.addEventListener('pointercancel', up);
+  });
+  val.addEventListener('click', () => openCalc(key));
+}
+Object.entries(FADERS).forEach(([k, d]) => buildFader(k, d));
+buildFader('width', { col: 'col_width', head: 'Width' }, true);
+function renderFaders() {
+  Object.entries(FADERS).forEach(([k, d]) => {
+    const v = d.get();
+    const f = Math.max(0, Math.min(1, (v - d.min) / (d.max - d.min)));
+    els[k].val.textContent = d.fmt(v);
+    els[k].fill.style.height = (f * 100) + '%';
+    els[k].knob.style.bottom = `calc(${f * 100}% - 1px)`;
+  });
+}
+renderFaders();
+
+// ================= Direction =================
+const btnDir = document.getElementById('btnDir');
+function renderDir() { btnDir.textContent = player.dir > 0 ? 'Direction Forward' : 'Direction Backward'; }
+btnDir.onclick = () => { player.dir *= -1; renderDir(); };
+renderDir();
+
+// ================= Calculator =================
+const calcBack = document.getElementById('calcBack');
+const calcTitle = document.getElementById('calcTitle');
+const calcTxt = document.getElementById('calcTxt');
+const calcPresets = document.getElementById('calcPresets');
+const calcPad = document.getElementById('calcPad');
+let activeKey = null;
+let buf = '';
+const CALC_DEFS = {
+  speed: {
+    title: 'Effect BPM for Dim  [0.000 .. 15360.000]',
+    init: () => String(player.speed) + ' BPM',
+    presets: [
+      { l: 'Off', cls: 'red dis' }, { l: 'Deactivate', cls: 'red dis' }, { l: 'Remove', cls: 'red dis' },
+      { l: 'Double', cls: 'red', fn: () => { player.speed = Math.min(15360, player.speed * 2); doneCalc(); } },
+      { l: 'Half', cls: 'red', fn: () => { player.speed = player.speed / 2; doneCalc(); } },
+      { l: '240 BPM', v: '240' }, { l: '120 BPM', v: '120' }, { l: '60 BPM', v: '60' },
+      { l: '30 BPM', v: '30' }, { l: '15 BPM', v: '15' }, { l: 'Stop', v: '0' },
+    ],
+    apply: a => { player.speed = clampV(a, 0, 15360); },
+  },
+  low: {
+    title: 'Low for Dim [-9999.000 .. 9999.000]',
+    init: () => String(player.low) + '%',
+    presets: [
+      { l: 'Off', cls: 'red dis' }, { l: 'Deactivate', cls: 'red dis' }, { l: 'Remove', cls: 'red dis' },
+      { l: 'Default Link', cls: 'blk dis' },
+      { l: '0%', v: '0' }, { l: '25%', v: '25' }, { l: '50%', v: '50' }, { l: '75%', v: '75' }, { l: '100%', v: '100' },
+    ],
+    apply: a => { player.low = clampV(a, 0, 100); },
+  },
+  high: {
+    title: 'High for Dim [-9999.000 .. 9999.000]',
+    init: () => String(player.high) + '%',
+    presets: [
+      { l: 'Off', cls: 'red dis' }, { l: 'Deactivate', cls: 'red dis' }, { l: 'Remove', cls: 'red dis' },
+      { l: 'Default Link', cls: 'blk dis' },
+      { l: '0%', v: '0' }, { l: '25%', v: '25' }, { l: '50%', v: '50' }, { l: '75%', v: '75' }, { l: '100%', v: '100' },
+    ],
+    apply: a => { player.high = clampV(a, 0, 100); },
+  },
+  phase: {
+    title: 'EffectPhase for Dim [-2879.000 .. 2879.000]',
+    init: () => player.phaseFrom === player.phaseTo
+      ? String(player.phaseFrom)
+      : `${player.phaseFrom} Thru ${player.phaseTo}`,
+    presets: [
+      { l: 'Off', cls: 'red dis' }, { l: 'Deactivate', cls: 'red dis' }, { l: 'Remove', cls: 'red dis' },
+      { l: 'Double', cls: 'red', fn: () => { player.phaseFrom *= 2; player.phaseTo *= 2; doneCalc(); } },
+      { l: 'Half', cls: 'red', fn: () => { player.phaseFrom /= 2; player.phaseTo /= 2; doneCalc(); } },
+      { l: '0..360', v: '0 Thru 360' }, { l: '0..-360', v: '0 Thru -360' },
+      { l: 'Mirror (0..360..0)', cls: 'red dis' },
+      { l: '0', v: '0' }, { l: '90', v: '90' }, { l: '180', v: '180' }, { l: '270', v: '270' }, { l: '360', v: '360' },
+    ],
+    apply: (a, b) => {
+      player.phaseFrom = clampV(a, -2879, 2879);
+      player.phaseTo = clampV(b !== undefined ? b : a, -2879, 2879);
+    },
+  },
+};
+function clampV(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function doneCalc() { renderFaders(); closeCalc(); }
+const PAD = [
+  ['7','7'], ['8','8'], ['9','9'], ['*',null], ['/',null],
+  ['4','4'], ['5','5'], ['6','6'], ['-','-'], ['Clear','CLEAR'],
+  ['1','1'], ['2','2'], ['3','3'], ['+',null], ['%',null],
+  ['0','0'], ['.','.'], ['Thru',' Thru '], ['+/-','SIGN'], ['Del','DEL'],
+  ['Home',null], ['End',null], ['<-',null],
+];
+function openCalc(key) {
+  activeKey = key;
+  const def = CALC_DEFS[key];
+  calcTitle.textContent = def.title;
+  buf = def.init();
+  renderBuf();
+  calcPresets.innerHTML = '';
+  def.presets.forEach(p => {
+    const b = document.createElement('div');
+    b.className = 'cp ' + (p.cls || 'blk');
+    b.textContent = p.l;
+    if (!p.cls || !p.cls.includes('dis')) {
+      b.onclick = () => {
+        if (p.fn) { p.fn(); return; }
+        if (p.v !== undefined) { buf = p.v; renderBuf(); highlight(b); }
+      };
+    }
+    calcPresets.appendChild(b);
+  });
+  calcPad.innerHTML = '';
+  PAD.forEach(([label, action]) => {
+    const k = document.createElement('div');
+    k.className = 'k' + (action === null ? ' dis' : '');
+    k.textContent = label;
+    if (action !== null) k.onclick = () => padPress(action);
+    calcPad.appendChild(k);
+  });
+  const please = document.createElement('div');
+  please.className = 'k please';
+  please.textContent = 'Please';
+  please.onclick = confirmCalc;
+  calcPad.appendChild(please);
+  calcBack.classList.add('open');
+}
+function highlight(el) {
+  calcPresets.querySelectorAll('.cp.gold').forEach(c => { c.classList.remove('gold'); c.classList.add('blk'); });
+  el.classList.remove('blk'); el.classList.add('gold');
+}
+function padPress(a) {
+  if (a === 'CLEAR') buf = '';
+  else if (a === 'DEL') buf = buf.slice(0, -1);
+  else if (a === 'SIGN') buf = buf.replace(/(-?)(\d+(?:\.\d+)?)(\s*)$/, (m, s, n, sp) => (s ? '' : '-') + n + sp);
+  else {
+    if (buf.replace(/thru/gi, '').match(/[%A-Za-z]/) && a.trim() !== 'Thru') buf = '';
+    buf += a;
+  }
+  renderBuf();
+}
+function renderBuf() { calcTxt.textContent = '"' + buf + '"'; }
+function confirmCalc() {
+  const def = CALC_DEFS[activeKey];
+  const m = buf.replace(/%|bpm/gi, '').trim()
+    .match(/^(-?\d+(?:\.\d+)?)(?:\s*thru\s*(-?\d+(?:\.\d+)?))?$/i);
+  if (m) {
+    const a = parseFloat(m[1]);
+    const b = m[2] !== undefined ? parseFloat(m[2]) : undefined;
+    def.apply(a, b);
+  }
+  doneCalc();
+}
+function closeCalc() { calcBack.classList.remove('open'); }
+document.getElementById('calcX').onclick = closeCalc;
+calcBack.onclick = e => { if (e.target === calcBack) closeCalc(); };
+
+// ================= Store / Result =================
+const resBack = document.getElementById('resBack');
+const btnNext = document.getElementById('btnNext');
+document.getElementById('btnStore').onclick = () => {
+  attempts++;
+  renderAtt();
+  const r = scoreAttempt();
+  const pr = progress[levelIdx];
+  if (r.total > pr.best) pr.best = r.total;
+  if (r.stars > pr.stars) pr.stars = r.stars;
+
+  if (r.total >= 95) {
+    const wf = document.getElementById('winFlash');
+    wf.classList.remove('go'); void wf.offsetWidth; wf.classList.add('go');
+  }
+
+  document.getElementById('resStars').innerHTML =
+    [0,1,2].map(i => `<span class="${i < r.stars ? 'on' : 'off'}">★</span>`).join('');
+  document.getElementById('resScore').textContent = r.total;
+  const v = document.getElementById('resVerdict');
+  if (r.total >= 95) { v.textContent = 'Stored. That IS the effect.'; v.className = 'verdict win'; }
+  else if (r.total >= 80) { v.textContent = 'Very close — an operator would notice.'; v.className = 'verdict'; }
+  else if (r.total >= 60) { v.textContent = 'Recognizable, but not the same cue.'; v.className = 'verdict'; }
+  else { v.textContent = 'Different effect. Study the target again.'; v.className = 'verdict'; }
+  document.getElementById('resParts').innerHTML = r.parts.map(p => `
+    <div class="part ${p.pts >= p.max - 1 ? 'ok' : p.pts < p.max * 0.5 ? 'miss' : ''}">
+      <div class="topline">
+        <span class="nm">${p.nm}</span>
+        <span class="hint">${p.hint}</span>
+        <span class="pts">${p.pts}/${p.max}</span>
+      </div>
+      <div class="vals">you <b>${p.you}</b> · target <b>${p.tgt}</b></div>
+    </div>`).join('');
+  const lastCue = levelIdx >= LEVELS.length - 1;
+  btnNext.disabled = progress[levelIdx].stars < 1;
+  btnNext.textContent = lastCue ? 'Finish' : 'Next Cue';
+  resBack.classList.add('open');
+};
+document.getElementById('btnRetry').onclick = () => resBack.classList.remove('open');
+btnNext.onclick = () => {
+  resBack.classList.remove('open');
+  if (levelIdx < LEVELS.length - 1) loadLevel(levelIdx + 1);
+  else showSummary();
+};
+
+// ================= Sequence summary =================
+const sumBack = document.getElementById('sumBack');
+const RANKS = [
+  [30, 'MA2 Guru'],
+  [25, 'Programmer'],
+  [18, 'Operator'],
+  [10, 'Bench Tech'],
+  [0,  'Stage Hand'],
+];
+function showSummary() {
+  const totStars = progress.reduce((s, p) => s + p.stars, 0);
+  const totBest = progress.reduce((s, p) => s + p.best, 0);
+  const rank = RANKS.find(([min]) => totStars >= min)[1];
+  document.getElementById('sumRank').textContent = rank;
+  document.getElementById('sumTot').textContent =
+    `${totStars}/${LEVELS.length * 3} ★ · ${totBest}/${LEVELS.length * 100} pts`;
+  document.getElementById('sumList').innerHTML = LEVELS.map((lv, i) => `
+    <div class="sum-row">
+      <span class="nm">${i + 1}. ${lv.name}</span>
+      <span class="bs">${progress[i].best}</span>
+      <span class="st">${starsHtml(progress[i].stars)}</span>
+    </div>`).join('');
+  sumBack.classList.add('open');
+}
+document.getElementById('sumClose').onclick = () => {
+  sumBack.classList.remove('open');
+  renderSelect();
+  selBack.classList.add('open');
+};
+sumBack.onclick = e => { if (e.target === sumBack) sumBack.classList.remove('open'); };
+
+// ================= Level select =================
+const selBack = document.getElementById('selBack');
+const selList = document.getElementById('selList');
+document.getElementById('lvBtn').onclick = () => { renderSelect(); selBack.classList.add('open'); };
+selBack.onclick = e => { if (e.target === selBack) selBack.classList.remove('open'); };
+function unlocked(i) { return i === 0 || progress[i - 1].stars >= 1; }
+function starsHtml(n) {
+  return [0,1,2].map(i => `<span class="${i < n ? '' : 'off'}">★</span>`).join('');
+}
+function renderSelect() {
+  selList.innerHTML = '';
+  LEVELS.forEach((lv, i) => {
+    const d = document.createElement('div');
+    const isOpen = unlocked(i);
+    d.className = 'item' + (i === levelIdx ? ' cur' : '') + (isOpen ? '' : ' lock');
+    d.innerHTML = `
+      <span class="nm">${i + 1}. ${isOpen ? lv.name : '???'}
+        <small>${isOpen ? lv.sub : 'earn a star on the previous cue'}</small></span>
+      <span class="st">${starsHtml(progress[i].stars)}</span>`;
+    if (isOpen) d.onclick = () => { loadLevel(i); selBack.classList.remove('open'); };
+    selList.appendChild(d);
+  });
+}
+
+// ================= Level management =================
+function renderAtt() {
+  document.getElementById('attLabel').textContent = attempts ? `try ${attempts}` : '';
+}
+function loadLevel(idx) {
+  levelIdx = idx;
+  target = { ...LEVELS[idx].p };
+  player = { speed: 60, dir: 1, low: 0, high: 100, phaseFrom: 0, phaseTo: 0 };
+  attempts = 0;
+  renderAtt();
+  document.getElementById('lvBtn').innerHTML =
+    `${idx + 1}/${LEVELS.length} · ${LEVELS[idx].name} <span class="st">${'★'.repeat(progress[idx].stars)}</span>`;
+  renderFaders(); renderDir();
+}
+loadLevel(0);
+</script>
+</body>
+</html>
