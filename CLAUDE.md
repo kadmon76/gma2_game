@@ -30,10 +30,9 @@ Per fixture i of N (N=8):
              (sin(2*pi*(BPM/60)*dir*t + phase_i*pi/180)+1)/2, 0, 100)
 - Speed is BPM (60 BPM = 1 Hz), NOT Hz — MA2 convention
 - Size is low/high VALUES, not amplitude — MA2 convention
-- OPEN VALIDATION: travel direction of "0 thru 360" was guessed. Kadmon will
-  verify on MA2 onPC (dimmer sine, 8 fixtures, phase 0 thru 360, note travel
-  direction vs selection order). If real MA2 is opposite, negate one sign in
-  dimmerAt() — and mirror the same fix inside canonical().
+- VALIDATED 2026-07-18: travel direction of "0 thru 360" was guessed, then
+  Kadmon verified on real MA2 and it MATCHES the game. The signs in dimmerAt()
+  and canonical() are CORRECT — do NOT negate them.
 
 ## This session's tasks (v1 deployment) — in order
 1. Init git repo. Keep single-file architecture (it's a feature: easy deploy).
