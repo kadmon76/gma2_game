@@ -57,6 +57,14 @@ survives closing the app. NOTHING ELSE. Claude acts as scope guardian.
 - v1.5 "Chase Pack": unlock Select Form window — PWM form + Width fader
   (one-lamp-at-a-time chases), Attack/Decay functional for PWM, Mirror phase
   preset (0 thru 360 thru 0 triangular distributions)
+  - Kadmon's requested v1.5 cues (2026-07-18): a Mirror cue using
+    "0 thru 360 thru 0" and variants; a 1-lamp-at-a-time chase; a
+    2-lamps-at-a-time chase.
+  - Design note (confirmed): these are ONE feature set = Form=PWM + Width.
+    On PWM, Width = duty cycle → it IS the "how many lamps on at once" knob
+    (narrow Width = 1 lamp; wider = 2, 3...). Width stays meaningless/grayed
+    for sine dim effects (as in v1) — only PWM needs it. Scoring will need a
+    Form axis + Width axis added to the equivalence/canonical logic.
 - v2: pan/tilt position effects (needs 2D stage view)
 - v3: combined dimmer+position scenarios
 - Someday: hardcore mode with typed MA2 syntax (the parameter object was
