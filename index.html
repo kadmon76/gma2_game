@@ -118,7 +118,56 @@
     background-size: 20% 25%, 20% 25%;
     display: flex; align-items: center; justify-content: center;
   }
+  .ma-form-box { cursor: pointer; }
   .ma-form-box svg { width: 92%; height: 80%; }
+
+  /* Select Form window — mimics the real MA2 layout */
+  .formwin {
+    width: 100%; max-width: 580px;
+    background: #000; border: 2px solid #223;
+    border-radius: 6px; overflow: hidden;
+  }
+  .fw-title { display: flex; align-items: stretch; background: var(--ma-title); border-bottom: 2px solid #050510; }
+  .fw-title .t {
+    flex: 1; text-align: center; color: #fff;
+    font-weight: 700; font-size: 0.82rem; padding: 9px 6px;
+  }
+  .fw-title .x {
+    width: 58px; margin: 3px;
+    background: #0a0a0a; border: 1px solid #445; border-radius: 4px;
+    color: var(--amber); font-weight: 700; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .form-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 7px; }
+  .form-tile {
+    background: #000; border: 2px solid var(--ma-gold); border-radius: 5px;
+    padding: 2px 3px 3px; cursor: pointer; overflow: hidden;
+  }
+  .form-tile .lbl {
+    color: #e8e8e8; font-size: 0.55rem; font-family: 'IBM Plex Mono', monospace;
+    white-space: nowrap; overflow: hidden; margin-bottom: 1px;
+  }
+  .form-tile svg { width: 100%; height: 34px; display: block; }
+  .form-tile.sel {
+    background:
+      linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px),
+      #000;
+    background-size: 12.5% 25%, 12.5% 25%;
+  }
+  .form-tile.sel .lbl { color: #ffe829; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+    max-width: 90vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: #241c05; color: var(--amber);
+    border: 1px solid var(--amber); border-radius: 8px;
+    padding: 9px 15px; font-size: 0.75rem;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    z-index: 40;
+  }
+  .toast.show { opacity: 1; }
   .ma-ad { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
   .ma-ad .ma-head { font-size: 0.6rem; }
   .ma-fader {
@@ -341,9 +390,9 @@
     <div class="ma-cols">
       <div class="ma-col">
         <div class="ma-head">Form</div>
-        <div class="ma-form-box">
+        <div class="ma-form-box" id="formBox">
           <svg viewBox="0 0 100 60" preserveAspectRatio="none">
-            <path d="M 0 30 C 12 2, 24 2, 36 30 S 60 58, 72 30 S 96 2, 100 14"
+            <path id="formPath" d="M0 30 C 12 0, 21 0, 33 30 S 54 60, 66 30 S 88 0, 100 30"
                   fill="none" stroke="#e8e8e8" stroke-width="2" vector-effect="non-scaling-stroke"/>
           </svg>
         </div>
@@ -380,6 +429,15 @@
     <div class="calc-pad" id="calcPad"></div>
   </div>
 </div>
+
+<!-- Select Form -->
+<div class="calc-back" id="formBack">
+  <div class="formwin">
+    <div class="fw-title"><span class="t">Select Form</span><span class="x" id="formX">✕</span></div>
+    <div class="form-grid" id="formGrid"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 
 <!-- Result -->
 <div class="res-back" id="resBack">
@@ -428,6 +486,11 @@ const LEVELS = [
   { name: 'Panic Cue',     sub: 'as fast as it looks',     p: { speed: 240, dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 0   } },
   { name: 'Slow Tide',     sub: 'patience',                p: { speed: 15,  dir: 1,  low: 20, high: 90,  phaseFrom: 0, phaseTo: 360 } },
   { name: 'Final Cue',     sub: 'everything at once',      p: { speed: 75,  dir: 1,  low: 10, high: 95,  phaseFrom: 0, phaseTo: -360 } },
+  // v1.5 Chase Pack
+  { name: 'The Fountain',  sub: 'it folds in the middle',  p: { speed: 60,  dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseMid: 360, phaseTo: 0 } },
+  { name: 'Split House',   sub: 'mirror, but shallower',   p: { speed: 90,  dir: 1,  low: 20, high: 100, phaseFrom: 0, phaseMid: 180, phaseTo: 0 } },
+  { name: 'Night Runner',  sub: 'one lamp at a time',      p: { speed: 60,  dir: 1,  low: 0,  high: 100, phaseFrom: 0, phaseTo: 360, form: 'pwm', width: 15 } },
+  { name: 'Convoy',        sub: 'two by two, backwards',   p: { speed: 90,  dir: -1, low: 0,  high: 100, phaseFrom: 0, phaseTo: 360, form: 'pwm', width: 30 } },
 ];
 // progress — persisted to localStorage
 const SAVE_KEY = 'fxtrainer.v1';
@@ -451,31 +514,50 @@ function saveProgress() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({ cue: levelIdx, progress }));
   } catch (e) { /* storage unavailable — play without persistence */ }
 }
-let target = { ...LEVELS[0].p };
-let player = { speed: 60, dir: 1, low: 0, high: 100, phaseFrom: 0, phaseTo: 0 };
+let target = { form: 'sine', width: 50, phaseMid: null, ...LEVELS[0].p };
+let player = { speed: 60, dir: 1, low: 0, high: 100, phaseFrom: 0, phaseMid: null, phaseTo: 0, form: 'sine', width: 50 };
 let attempts = 0;
 
 function fixturePhaseDeg(p, i) {
   const t = FIXTURE_COUNT === 1 ? 0 : i / (FIXTURE_COUNT - 1);
-  return p.phaseFrom + (p.phaseTo - p.phaseFrom) * t;
+  if (p.phaseMid == null) return p.phaseFrom + (p.phaseTo - p.phaseFrom) * t;
+  // "from Thru mid Thru to" — piecewise linear, mid anchored at the selection center
+  return t <= 0.5
+    ? p.phaseFrom + (p.phaseMid - p.phaseFrom) * (t * 2)
+    : p.phaseMid + (p.phaseTo - p.phaseMid) * ((t - 0.5) * 2);
 }
 function dimmerAt(p, i, t) {
-  const ph = fixturePhaseDeg(p, i) * Math.PI / 180;
-  const s = Math.sin(2 * Math.PI * (p.speed / 60) * p.dir * t + ph);
+  const ph = fixturePhaseDeg(p, i);
+  if (p.form === 'pwm') {
+    const w = (p.width == null ? 50 : p.width) / 100;
+    const c = (((p.speed / 60) * p.dir * t + ph / 360) % 1 + 1) % 1;
+    return Math.max(0, Math.min(100, c < w ? p.high : p.low));
+  }
+  const s = Math.sin(2 * Math.PI * (p.speed / 60) * p.dir * t + ph * Math.PI / 180);
   return Math.max(0, Math.min(100, p.low + (p.high - p.low) * (s + 1) / 2));
 }
 
 // ================= Scoring =================
 function canonical(p) {
+  const form = p.form === 'pwm' ? 'pwm' : 'sine';
+  let w = p.width == null ? 50 : p.width;
   const phases = [];
   for (let i = 0; i < FIXTURE_COUNT; i++) {
     let ph = fixturePhaseDeg(p, i);
-    if (p.dir < 0) ph = 180 - ph;
-    if (p.low > p.high) ph += 180;
+    if (form === 'pwm') {
+      // square wave: reversed time mirrors the on-slot; swapped low/high
+      // inverts it (duty w -> 100-w, on-slot start shifts by the duty width)
+      if (p.dir < 0) ph = 3.6 * w - ph;
+      if (p.low > p.high) ph = ph - 3.6 * w;
+    } else {
+      if (p.dir < 0) ph = 180 - ph;
+      if (p.low > p.high) ph += 180;
+    }
     phases.push(ph);
   }
+  if (form === 'pwm' && p.low > p.high) w = 100 - w;
   const rel = phases.map(ph => circNorm(ph - phases[0]));
-  return { speed: p.speed, lo: Math.min(p.low, p.high), hi: Math.max(p.low, p.high), rel };
+  return { form, speed: p.speed, lo: Math.min(p.low, p.high), hi: Math.max(p.low, p.high), width: w, rel };
 }
 function circNorm(deg) { let d = deg % 360; if (d < 0) d += 360; return d; }
 function circDist(a, b) { const d = Math.abs(circNorm(a) - circNorm(b)); return Math.min(d, 360 - d); }
@@ -487,16 +569,25 @@ function band(err, tolFull, tolZero, pts) {
 function scoreAttempt() {
   const T = canonical(target);
   const P = canonical(player);
+  const isPwm = T.form === 'pwm';
+  // weights per axis; Width only scored on PWM targets
+  const W = isPwm
+    ? { form: 10, speed: 20, size: 20, phase: 30, width: 20 }
+    : { form: 10, speed: 25, size: 25, phase: 40, width: 0 };
+
+  const formPts = P.form === T.form ? W.form : 0;
+  const formHint = formPts ? 'matched' : 'try ' + (isPwm ? 'PWM' : 'Sin');
+
   const spdErr = Math.abs(P.speed - T.speed);
-  const spdPts = band(spdErr, Math.max(2, T.speed * 0.03), Math.max(20, T.speed * 0.35), 30);
+  const spdPts = band(spdErr, Math.max(2, T.speed * 0.03), Math.max(20, T.speed * 0.35), W.speed);
   let spdHint = 'matched';
-  if (spdPts < 29) spdHint = P.speed > T.speed ? 'too fast' : 'too slow';
+  if (spdPts < W.speed - 1) spdHint = P.speed > T.speed ? 'too fast' : 'too slow';
 
   const loErr = Math.abs(P.lo - T.lo);
   const hiErr = Math.abs(P.hi - T.hi);
-  const sizePts = band(loErr, 3, 35, 15) + band(hiErr, 3, 35, 15);
+  const sizePts = band(loErr, 3, 35, W.size / 2) + band(hiErr, 3, 35, W.size / 2);
   let sizeHint = 'matched';
-  if (sizePts < 29) {
+  if (sizePts < W.size - 1) {
     const hints = [];
     if (loErr > 3) hints.push(P.lo > T.lo ? 'bottom too high' : 'bottom too low');
     if (hiErr > 3) hints.push(P.hi > T.hi ? 'top too high' : 'top too low');
@@ -510,28 +601,47 @@ function scoreAttempt() {
   }
   const errNow = phaseErr(P.rel);
   const errFlip = phaseErr(canonical({ ...player, dir: -player.dir }).rel);
-  const phasePts = band(errNow, 8, 90, 40);
+  const phasePts = band(errNow, 8, 90, W.phase);
   let phaseHint = 'matched';
-  if (phasePts < 38) {
+  if (phasePts < W.phase - 2) {
     if (errFlip < errNow * 0.4) phaseHint = 'try the other direction';
     else if (errNow > 60) phaseHint = 'spread is off';
     else phaseHint = 'spread is close';
   }
 
-  const total = Math.round(spdPts + sizePts + phasePts);
-  const fv = (from, to, dir) => `${from}..${to} ${dir > 0 ? '>' : '<'}`;
+  let widthPts = 0, widthHint = 'matched';
+  if (isPwm) {
+    const wErr = Math.abs(P.width - T.width);
+    widthPts = band(wErr, 4, 30, W.width);
+    if (widthPts < W.width - 1)
+      widthHint = P.width > T.width ? 'too wide — too many lamps' : 'too narrow';
+  }
+
+  const total = Math.round(formPts + spdPts + sizePts + phasePts + widthPts);
+  const fname = f => f === 'pwm' ? 'PWM' : 'Sin';
+  const fv = p => {
+    const seq = p.phaseMid == null
+      ? `${p.phaseFrom}..${p.phaseTo}`
+      : `${p.phaseFrom}..${p.phaseMid}..${p.phaseTo}`;
+    return `${seq} ${p.dir > 0 ? '>' : '<'}`;
+  };
+  const parts = [
+    { nm: 'Form',  pts: Math.round(formPts),  max: W.form,  hint: formHint,
+      you: fname(player.form), tgt: fname(target.form) },
+    { nm: 'Speed', pts: Math.round(spdPts),   max: W.speed, hint: spdHint,
+      you: player.speed + ' BPM', tgt: target.speed + ' BPM' },
+    { nm: 'Size',  pts: Math.round(sizePts),  max: W.size,  hint: sizeHint,
+      you: `${player.low}..${player.high}`, tgt: `${target.low}..${target.high}` },
+    { nm: 'Phase', pts: Math.round(phasePts), max: W.phase, hint: phaseHint,
+      you: fv(player), tgt: fv(target) },
+  ];
+  if (isPwm) parts.push(
+    { nm: 'Width', pts: Math.round(widthPts), max: W.width, hint: widthHint,
+      you: player.width + '%', tgt: target.width + '%' });
   return {
     total,
     stars: total >= 95 ? 3 : total >= 80 ? 2 : total >= 60 ? 1 : 0,
-    parts: [
-      { nm: 'Speed', pts: Math.round(spdPts),   max: 30, hint: spdHint,
-        you: player.speed + ' BPM', tgt: target.speed + ' BPM' },
-      { nm: 'Size',  pts: Math.round(sizePts),  max: 30, hint: sizeHint,
-        you: `${player.low}..${player.high}`, tgt: `${target.low}..${target.high}` },
-      { nm: 'Phase', pts: Math.round(phasePts), max: 40, hint: phaseHint,
-        you: fv(player.phaseFrom, player.phaseTo, player.dir),
-        tgt: fv(target.phaseFrom, target.phaseTo, target.dir) },
-    ],
+    parts,
   };
 }
 
@@ -593,10 +703,13 @@ const FADERS = {
   speed: { col: 'col_speed', head: 'Speed', min: 0, max: 240, get: () => player.speed, set: v => player.speed = v, fmt: v => v.toFixed(1) },
   phase: { col: 'col_phase', head: 'Phase', min: 0, max: 360,
            get: () => player.phaseTo,
-           set: v => { player.phaseFrom = 0; player.phaseTo = v; },
-           fmt: () => player.phaseFrom === 0
-             ? player.phaseTo.toFixed(1)
-             : `${player.phaseFrom.toFixed(0)}..${player.phaseTo.toFixed(0)}` },
+           set: v => { player.phaseFrom = 0; player.phaseMid = null; player.phaseTo = v; },
+           fmt: () => player.phaseMid != null
+             ? `${player.phaseFrom.toFixed(0)}..${player.phaseMid.toFixed(0)}..${player.phaseTo.toFixed(0)}`
+             : player.phaseFrom === 0
+               ? player.phaseTo.toFixed(1)
+               : `${player.phaseFrom.toFixed(0)}..${player.phaseTo.toFixed(0)}` },
+  width: { col: 'col_width', head: 'Width', min: 0, max: 100, get: () => player.width, set: v => player.width = v, fmt: v => v.toFixed(1) },
 };
 const els = {};
 function buildFader(key, def, disabled = false) {
@@ -636,7 +749,6 @@ function buildFader(key, def, disabled = false) {
   val.addEventListener('click', () => openCalc(key));
 }
 Object.entries(FADERS).forEach(([k, d]) => buildFader(k, d));
-buildFader('width', { col: 'col_width', head: 'Width' }, true);
 function renderFaders() {
   Object.entries(FADERS).forEach(([k, d]) => {
     const v = d.get();
@@ -653,6 +765,75 @@ const btnDir = document.getElementById('btnDir');
 function renderDir() { btnDir.textContent = player.dir > 0 ? 'Direction Forward' : 'Direction Backward'; }
 btnDir.onclick = () => { player.dir *= -1; renderDir(); };
 renderDir();
+
+// ================= Select Form =================
+// The full MA2 form bank, tile-for-tile. Only Sin and Pwm are wired to the
+// engine so far (id set); the rest are display-only until their packs unlock.
+const FORMS = [
+  { n: 'Stomp',      num: 1,  d: 'M2 56 H98' },
+  { n: 'Release',    num: 2,  d: 'M2 56 H98' },
+  { n: 'Random',     num: 3,  d: 'M2 56 L26 6 L50 6 L74 56 H98' },
+  { n: 'Pwm',        num: 4,  id: 'pwm', d: 'M2 56 L22 6 L56 6 L76 56 H98' },
+  { n: 'Chase',      num: 5,  d: 'M2 56 L16 6 L72 6 L88 56 H98' },
+  { n: 'Flat Low',   num: 6,  d: 'M2 57 H98' },
+  { n: 'Flat High',  num: 7,  d: 'M2 3 H98' },
+  { n: 'Sin',        num: 8,  id: 'sine', d: 'M0 30 C 12 0, 21 0, 33 30 S 54 60, 66 30 S 88 0, 100 30' },
+  { n: 'Cos',        num: 9,  d: 'M2 6 C 22 6, 30 56, 50 56 S 78 6, 98 6' },
+  { n: 'Ramp Plus',  num: 10, d: 'M2 56 L98 6' },
+  { n: 'Ramp Minus', num: 11, d: 'M2 6 L98 56' },
+  { n: 'Ramp',       num: 12, d: 'M2 56 L50 6 L98 56' },
+  { n: 'Phase 1',    num: 13, d: 'M2 56 L20 6 L44 6 L62 56 H98' },
+  { n: 'Phase 2',    num: 14, d: 'M2 56 L14 6 L64 6 L82 56 H98' },
+  { n: 'Phase 3',    num: 15, d: 'M2 6 L20 56 L44 56 L62 6 H98' },
+  { n: 'Bump',       num: 16, d: 'M2 56 Q50 -14 98 56' },
+  { n: 'Swing',      num: 17, d: 'M2 56 H24 Q50 -8 76 56 H98' },
+  { n: 'Ramp 50',    num: 18, d: 'M2 56 L40 6 L78 56 H98' },
+  { n: 'Circle',     num: 19, circle: true, dots: [[50, 6], [26, 44], [62, 54]] },
+  { n: 'Sound',      num: 20, d: 'M2 57 H98' },
+  { n: 'Flyout',     num: 21, d: 'M8 56 L28 6 H72 L78 56', d2: 'M8 56 L82 6' },
+  { n: 'Wave',       num: 22, d2: 'M30 20 C 38 44, 46 44, 50 30 S 60 16, 70 40', dots: [[30, 18], [50, 30], [70, 40]] },
+  { n: 'Cross',      num: 23, d2: 'M30 40 C 45 10, 55 50, 70 20 M30 20 C 45 50, 55 10, 70 44', dots: [[30, 40], [30, 20], [70, 20], [70, 44]] },
+];
+const formBack = document.getElementById('formBack');
+const formGrid = document.getElementById('formGrid');
+function formSvg(f) {
+  let inner = '';
+  if (f.circle) inner += '<circle cx="50" cy="30" r="24" fill="none" stroke="#e8e8e8" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+  if (f.d) inner += `<path d="${f.d}" fill="none" stroke="#e8e8e8" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  if (f.d2) inner += `<path d="${f.d2}" fill="none" stroke="#39c2d7" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  (f.dots || []).forEach(([x, y]) => inner += `<rect x="${x - 3}" y="${y - 3}" width="6" height="6" fill="#ffe829"/>`);
+  return `<svg viewBox="0 0 100 60" preserveAspectRatio="none">${inner}</svg>`;
+}
+function renderFormGrid() {
+  formGrid.innerHTML = '';
+  FORMS.forEach(f => {
+    const d = document.createElement('div');
+    d.className = 'form-tile' + (f.id && player.form === f.id ? ' sel' : '');
+    d.innerHTML = `<div class="lbl">${f.n} ${f.num}</div>` + formSvg(f);
+    d.onclick = () => {
+      if (!f.id) { toast('Only Sin & Pwm are in this training pack — more forms unlock later'); return; }
+      player.form = f.id;
+      renderForm();
+      formBack.classList.remove('open');
+    };
+    formGrid.appendChild(d);
+  });
+}
+function renderForm() {
+  document.getElementById('formPath').setAttribute('d', FORMS.find(f => f.id === player.form).d);
+}
+document.getElementById('formBox').onclick = () => { renderFormGrid(); formBack.classList.add('open'); };
+document.getElementById('formX').onclick = () => formBack.classList.remove('open');
+formBack.onclick = e => { if (e.target === formBack) formBack.classList.remove('open'); };
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+renderForm();
 
 // ================= Calculator =================
 const calcBack = document.getElementById('calcBack');
@@ -697,21 +878,39 @@ const CALC_DEFS = {
   },
   phase: {
     title: 'EffectPhase for Dim [-2879.000 .. 2879.000]',
-    init: () => player.phaseFrom === player.phaseTo
-      ? String(player.phaseFrom)
-      : `${player.phaseFrom} Thru ${player.phaseTo}`,
+    init: () => player.phaseMid != null
+      ? `${player.phaseFrom} Thru ${player.phaseMid} Thru ${player.phaseTo}`
+      : player.phaseFrom === player.phaseTo
+        ? String(player.phaseFrom)
+        : `${player.phaseFrom} Thru ${player.phaseTo}`,
     presets: [
       { l: 'Off', cls: 'red dis' }, { l: 'Deactivate', cls: 'red dis' }, { l: 'Remove', cls: 'red dis' },
-      { l: 'Double', cls: 'red', fn: () => { player.phaseFrom *= 2; player.phaseTo *= 2; doneCalc(); } },
-      { l: 'Half', cls: 'red', fn: () => { player.phaseFrom /= 2; player.phaseTo /= 2; doneCalc(); } },
+      { l: 'Double', cls: 'red', fn: () => { player.phaseFrom *= 2; if (player.phaseMid != null) player.phaseMid *= 2; player.phaseTo *= 2; doneCalc(); } },
+      { l: 'Half', cls: 'red', fn: () => { player.phaseFrom /= 2; if (player.phaseMid != null) player.phaseMid /= 2; player.phaseTo /= 2; doneCalc(); } },
       { l: '0..360', v: '0 Thru 360' }, { l: '0..-360', v: '0 Thru -360' },
-      { l: 'Mirror (0..360..0)', cls: 'red dis' },
+      { l: 'Mirror (0..360..0)', v: '0 Thru 360 Thru 0' },
       { l: '0', v: '0' }, { l: '90', v: '90' }, { l: '180', v: '180' }, { l: '270', v: '270' }, { l: '360', v: '360' },
     ],
-    apply: (a, b) => {
+    apply: (a, b, c) => {
       player.phaseFrom = clampV(a, -2879, 2879);
-      player.phaseTo = clampV(b !== undefined ? b : a, -2879, 2879);
+      if (c !== undefined) {
+        player.phaseMid = clampV(b, -2879, 2879);
+        player.phaseTo = clampV(c, -2879, 2879);
+      } else {
+        player.phaseMid = null;
+        player.phaseTo = clampV(b !== undefined ? b : a, -2879, 2879);
+      }
     },
+  },
+  width: {
+    title: 'Width for Dim [0.000 .. 100.000]',
+    init: () => String(player.width) + '%',
+    presets: [
+      { l: 'Off', cls: 'red dis' }, { l: 'Deactivate', cls: 'red dis' }, { l: 'Remove', cls: 'red dis' },
+      { l: 'Default Link', cls: 'blk dis' },
+      { l: '12.5%', v: '12.5' }, { l: '25%', v: '25' }, { l: '50%', v: '50' }, { l: '75%', v: '75' }, { l: '100%', v: '100' },
+    ],
+    apply: a => { player.width = clampV(a, 0, 100); },
   },
 };
 function clampV(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -775,11 +974,12 @@ function renderBuf() { calcTxt.textContent = '"' + buf + '"'; }
 function confirmCalc() {
   const def = CALC_DEFS[activeKey];
   const m = buf.replace(/%|bpm/gi, '').trim()
-    .match(/^(-?\d+(?:\.\d+)?)(?:\s*thru\s*(-?\d+(?:\.\d+)?))?$/i);
+    .match(/^(-?\d+(?:\.\d+)?)(?:\s*thru\s*(-?\d+(?:\.\d+)?))?(?:\s*thru\s*(-?\d+(?:\.\d+)?))?$/i);
   if (m) {
     const a = parseFloat(m[1]);
     const b = m[2] !== undefined ? parseFloat(m[2]) : undefined;
-    def.apply(a, b);
+    const c = m[3] !== undefined ? parseFloat(m[3]) : undefined;
+    def.apply(a, b, c);
   }
   doneCalc();
 }
@@ -894,13 +1094,13 @@ function renderAtt() {
 }
 function loadLevel(idx) {
   levelIdx = idx;
-  target = { ...LEVELS[idx].p };
-  player = { speed: 60, dir: 1, low: 0, high: 100, phaseFrom: 0, phaseTo: 0 };
+  target = { form: 'sine', width: 50, phaseMid: null, ...LEVELS[idx].p };
+  player = { speed: 60, dir: 1, low: 0, high: 100, phaseFrom: 0, phaseMid: null, phaseTo: 0, form: 'sine', width: 50 };
   attempts = 0;
   renderAtt();
   document.getElementById('lvBtn').innerHTML =
     `${idx + 1}/${LEVELS.length} · ${LEVELS[idx].name} <span class="st">${'★'.repeat(progress[idx].stars)}</span>`;
-  renderFaders(); renderDir();
+  renderFaders(); renderDir(); renderForm();
   saveProgress();
 }
 loadProgress();

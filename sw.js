@@ -1,6 +1,6 @@
 // FX Trainer service worker — minimal cache-first.
 // Bump CACHE on every content deploy so clients pick up the new version.
-const CACHE = 'fxtrainer-v1.0.0';
+const CACHE = 'fxtrainer-v1.5.1';
 const ASSETS = [
   './',
   './index.html',
